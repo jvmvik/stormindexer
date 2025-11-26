@@ -1,0 +1,11 @@
+# StormIndexer Configuration
+# Copy this file to ~/.stormindexer/config.yaml or ./config.yaml
+
+# Path to the SQLite database file
+# Relative paths are resolved from the current working directory
+database_path: ".stormindexer.db"
+
+# Machine identifier (used to distinguish indexes from different machines)
+# Defaults to hostname if not specified
+machine_id: "my-computer"
+
