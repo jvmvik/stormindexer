@@ -40,3 +40,6 @@ config.local.yaml
 # Logs
 *.log
 
+coverage.html
+.gitignore
+go.sum

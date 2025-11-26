@@ -33,11 +33,11 @@ var listCmd = &cobra.Command{
 			sizeStr := formatBytes(index.TotalSize)
 			lastSync := "Never"
 			if !index.LastSync.IsZero() {
-				lastSync = index.LastSync.Format(time.RFC3339)
+				lastSync = index.LastSync.Format("2006-01-02 15:04:05")
 			}
 
 			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
-				index.ID[:8]+"...", // Truncate ID for display
+				index.ID[:12], // Truncate ID for display (12 chars)
 				index.Name,
 				index.RootPath,
 				index.TotalFiles,

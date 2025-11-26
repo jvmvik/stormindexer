@@ -142,7 +142,7 @@ var duplicatesCmd = &cobra.Command{
 
 			fmt.Printf("Checksum: %s... (%d copies)\n", checksum[:12], len(files))
 			for _, file := range files {
-				fmt.Printf("  - %s [%s]\n", file.Path, file.IndexID[:8])
+				fmt.Printf("  - %s [%s]\n", file.Path, file.IndexID[:12])
 			}
 			fmt.Println()
 			count++

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -47,9 +46,9 @@ var showCmd = &cobra.Command{
 		fmt.Printf("Name:        %s\n", index.Name)
 		fmt.Printf("Root Path:   %s\n", index.RootPath)
 		fmt.Printf("Machine ID:  %s\n", index.MachineID)
-		fmt.Printf("Created:     %s\n", index.CreatedAt.Format(time.RFC3339))
+		fmt.Printf("Created:     %s\n", index.CreatedAt.Format("2006-01-02 15:04:05"))
 		if !index.LastSync.IsZero() {
-			fmt.Printf("Last Sync:   %s\n", index.LastSync.Format(time.RFC3339))
+			fmt.Printf("Last Sync:   %s\n", index.LastSync.Format("2006-01-02 15:04:05"))
 		}
 		fmt.Printf("\nStatistics\n")
 		fmt.Printf("----------\n")

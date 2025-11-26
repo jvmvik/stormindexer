@@ -37,7 +37,7 @@ To find indexes, use 'stormindexer list'.`,
 
 		// Show what will be removed
 		fmt.Printf("Index to remove:\n")
-		fmt.Printf("  ID:   %s\n", index.ID)
+		fmt.Printf("  ID:   %s\n", index.ID[:12])
 		fmt.Printf("  Name: %s\n", index.Name)
 		fmt.Printf("  Path: %s\n", index.RootPath)
 		fmt.Printf("  Files: %d\n", index.TotalFiles)
