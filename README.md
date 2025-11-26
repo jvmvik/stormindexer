@@ -1,6 +1,11 @@
 # StormIndexer
 
-A powerful file indexing and syncing tool written in Go. StormIndexer allows you to index files across multiple disks, machines, and external drives, track file metadata, calculate checksums, and synchronize files between different locations.
+A powerful file indexing and syncing tool written in Go. StormIndexer allows you to index files across multiple disks, machines, and external drives, track file metadata, calculate checksums, and synchronize files using rsync.
+
+For years a dream, now a reality—forged without friction by the quick hand of AI.
+Forged in Go—to escape the lethargy of Ruby, the compatibility quagmires of Python, and the cryptic nature of Rust.
+
+WARNING: This project is in very early development. It requires much more human validation and is not yet usable.
 
 ## Features
 
@@ -23,11 +28,18 @@ A powerful file indexing and syncing tool written in Go. StormIndexer allows you
 ### Build from Source
 
 ```bash
-git clone <repository-url>
+git clone git@github.com:jvmvik/stormindexer.git
 cd stormindexer
 go mod download
 go build -o stormindexer
 ```
+
+### Limitation 
+
+ - Dependency on rsync 
+    - windows: `install wsl`
+    - macOS : `brew install rsync`
+    - Linux : `apt install rsync` (Debian/Ubuntu) or `pacman install rsync` (Arch) or `rpm install rsync` (Fedora/CentOS/Redhat)
 
 ## Usage
 
@@ -57,12 +69,14 @@ View all indexed locations:
 ./stormindexer list
 ```
 
+![List command output](doc/list-output.png)
+
 ### List Files in an Index
 
 View all files in a specific index:
 
 ```bash
-./stormindexer list files <index-id>
+./stormindexer list files <name|path>
 ```
 
 ### Reindex
@@ -70,8 +84,8 @@ View all files in a specific index:
 Update an existing index to reflect changes:
 
 ```bash
-./stormindexer reindex <index-id>
-./stormindexer reindex <index-id> --checksums
+./stormindexer reindex <name|path>
+./stormindexer reindex <name|path> --checksums
 ```
 
 ### Remove an Index
@@ -80,10 +94,10 @@ Remove an indexed directory from the database:
 
 ```bash
 # Show what will be removed (requires --force to actually remove)
-./stormindexer remove <index-id>
+./stormindexer remove <name|path>
 
 # Actually remove the index (skips confirmation)
-./stormindexer remove <index-id> --force
+./stormindexer remove <name|path> --force
 ```
 
 **Note**: This only removes the index from the database. It does NOT delete the actual files on disk.
@@ -93,7 +107,7 @@ Remove an indexed directory from the database:
 Compare two indexes to see differences:
 
 ```bash
-./stormindexer compare <index-id-1> <index-id-2>
+./stormindexer compare <name-1> <name-2>
 ```
 
 ### Sync Indexes
@@ -102,13 +116,13 @@ Sync files from one index to another using rsync:
 
 ```bash
 # Dry run (show what would be synced)
-./stormindexer sync <source-index-id> <target-index-id> --dry-run
+./stormindexer sync <source-name> <target-name> --dry-run
 
 # Actual sync (copies files using rsync)
-./stormindexer sync <source-index-id> <target-index-id>
+./stormindexer sync <source-name> <target-name>
 
 # Sync and delete extra files in target (use with caution!)
-./stormindexer sync <source-index-id> <target-index-id> --delete
+./stormindexer sync <source-name> <target-name> --delete
 ```
 
 **Note**: The sync command uses `rsync` to perform actual file copying. It preserves file permissions, timestamps, and other metadata. The `--delete` flag will remove files in the target that don't exist in the source, making the target an exact mirror.
@@ -171,7 +185,7 @@ By default, StormIndexer stores its database in `.stormindexer.db` in the curren
 ./stormindexer index /Volumes/Drive2 --name "Backup Drive 2" --checksums
 
 # Compare them
-./stormindexer compare <index-id-1> <index-id-2>
+./stormindexer compare <name-1> <name-2>
 ```
 
 ### Sync Files Between Machines
@@ -184,7 +198,7 @@ By default, StormIndexer stores its database in `.stormindexer.db` in the curren
 ./stormindexer index /home/user/documents --name "Machine2 Documents" --checksums
 
 # Copy the database file to machine 2, then compare
-./stormindexer compare <machine1-index-id> <machine2-index-id>
+./stormindexer compare <machine1-name> <machine2-name>
 ```
 
 ## Project Structure
