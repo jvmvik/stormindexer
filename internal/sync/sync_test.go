@@ -236,3 +236,93 @@ func TestCompareIndexes_IdenticalIndexes(t *testing.T) {
 	}
 }
 
+func TestFindDuplicates_AcrossMultipleDrives(t *testing.T) {
+	syncer, db, _, _ := setupTestSync(t)
+	defer db.Close()
+
+	// Simulate multiple drives with different mount points
+	drive1ID := "drive1-index"
+	drive2ID := "drive2-index"
+	drive3ID := "drive3-index"
+
+	// Create indexes for different drives (simulating /Volumes/drive1, /Volumes/drive2, etc.)
+	createTestIndex(t, db, drive1ID, "Drive 1", "/Volumes/drive1")
+	createTestIndex(t, db, drive2ID, "Drive 2", "/Volumes/drive2")
+	createTestIndex(t, db, drive3ID, "Drive 3", "/mnt/external")
+
+	// Add files with same checksum across different drives
+	duplicateChecksum1 := "abc123def456"
+	duplicateChecksum2 := "xyz789uvw012"
+
+	// First duplicate set: same file exists on drive1 and drive2
+	addTestFile(t, db, drive1ID, "/Volumes/drive1/documents/file1.pdf", "documents/file1.pdf", 1024, duplicateChecksum1)
+	addTestFile(t, db, drive2ID, "/Volumes/drive2/backup/file1.pdf", "backup/file1.pdf", 1024, duplicateChecksum1)
+
+	// Second duplicate set: same file exists on all three drives
+	addTestFile(t, db, drive1ID, "/Volumes/drive1/photos/image.jpg", "photos/image.jpg", 2048, duplicateChecksum2)
+	addTestFile(t, db, drive2ID, "/Volumes/drive2/images/image.jpg", "images/image.jpg", 2048, duplicateChecksum2)
+	addTestFile(t, db, drive3ID, "/mnt/external/pics/image.jpg", "pics/image.jpg", 2048, duplicateChecksum2)
+
+	// Add unique files to each drive (should not appear in duplicates)
+	addTestFile(t, db, drive1ID, "/Volumes/drive1/unique1.txt", "unique1.txt", 512, "unique-checksum-1")
+	addTestFile(t, db, drive2ID, "/Volumes/drive2/unique2.txt", "unique2.txt", 512, "unique-checksum-2")
+	addTestFile(t, db, drive3ID, "/mnt/external/unique3.txt", "unique3.txt", 512, "unique-checksum-3")
+
+	duplicates, err := syncer.FindDuplicates()
+	if err != nil {
+		t.Fatalf("FindDuplicates failed: %v", err)
+	}
+
+	// Should find 2 duplicate sets
+	if len(duplicates) != 2 {
+		t.Errorf("Expected 2 duplicate sets, got %d", len(duplicates))
+	}
+
+	// Verify first duplicate set (2 files on drive1 and drive2)
+	dupSet1, exists := duplicates[duplicateChecksum1]
+	if !exists {
+		t.Fatal("Expected duplicate set for checksum1")
+	}
+	if len(dupSet1) != 2 {
+		t.Errorf("Expected 2 duplicate files for checksum1, got %d", len(dupSet1))
+	}
+	// Verify files are from different drives
+	indexIDs := make(map[string]bool)
+	for _, file := range dupSet1 {
+		indexIDs[file.IndexID] = true
+	}
+	if len(indexIDs) != 2 {
+		t.Errorf("Expected duplicates from 2 different drives, got %d", len(indexIDs))
+	}
+
+	// Verify second duplicate set (3 files across all drives)
+	dupSet2, exists := duplicates[duplicateChecksum2]
+	if !exists {
+		t.Fatal("Expected duplicate set for checksum2")
+	}
+	if len(dupSet2) != 3 {
+		t.Errorf("Expected 3 duplicate files for checksum2, got %d", len(dupSet2))
+	}
+	// Verify files are from all three drives
+	indexIDs2 := make(map[string]bool)
+	for _, file := range dupSet2 {
+		indexIDs2[file.IndexID] = true
+	}
+	if len(indexIDs2) != 3 {
+		t.Errorf("Expected duplicates from 3 different drives, got %d", len(indexIDs2))
+	}
+
+	// Verify unique files are not in duplicates
+	for checksum, files := range duplicates {
+		if checksum == "unique-checksum-1" || checksum == "unique-checksum-2" || checksum == "unique-checksum-3" {
+			t.Errorf("Unique file checksum %s should not appear in duplicates", checksum)
+		}
+		// Verify all files in duplicate sets have the same checksum
+		for _, file := range files {
+			if file.Checksum != checksum {
+				t.Errorf("File in duplicate set has mismatched checksum: expected %s, got %s", checksum, file.Checksum)
+			}
+		}
+	}
+}
+
