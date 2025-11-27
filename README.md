@@ -15,6 +15,7 @@ WARNING: This project is in very early development. It requires much more human 
 - **File Synchronization**: Uses rsync under the hood for efficient file copying
 - **Change Detection**: Track file additions, updates, and deletions
 - **Duplicate Detection**: Find duplicate files across all indexed locations
+- **Advanced File Search**: Search files across multiple drives with pattern matching, date filtering, and more
 - **SQLite Database**: Lightweight, portable database storage
 - **CLI Interface**: Easy-to-use command-line interface
 
@@ -78,6 +79,68 @@ View all files in a specific index:
 ```bash
 ./stormindexer list files <name|path>
 ```
+
+### Find Files
+
+Search for files across all indexes with flexible filtering options:
+
+```bash
+# Find files by name pattern (supports wildcards: *, ?)
+./stormindexer find --name "*.pdf"
+
+# Find files in a specific directory
+./stormindexer find --dir "documents"
+
+# Find files by checksum
+./stormindexer find --checksum abc123def456...
+
+# Find files by size (supports >, <, =, >=, <=)
+./stormindexer find --size ">100M"
+./stormindexer find --size "<1G"
+./stormindexer find --size "=500K"
+
+# Find files modified since a date (supports relative dates like git)
+./stormindexer find --since "2 weeks ago"
+./stormindexer find --since "2024-01-15"
+./stormindexer find --since "yesterday"
+
+# Find files modified until a date
+./stormindexer find --until "2024-01-20"
+./stormindexer find --until "yesterday"
+
+# Find files in a date range
+./stormindexer find --since "2024-01-01" --until "2024-01-31"
+
+# Filter by file type
+./stormindexer find --type file --name "*.pdf"    # Only files
+./stormindexer find --type dir --dir "backup"     # Only directories
+./stormindexer find --type all                    # Both files and directories (default)
+
+# Limit search to specific indexes
+./stormindexer find --name "*.pdf" --index "nas/serpapi" --index "nas/serpapi-golang"
+
+# Find duplicate files (grouped by checksum and drive)
+./stormindexer find --duplicates
+./stormindexer find -d --name "*.pdf"             # Duplicates with name filter
+
+# Combine multiple filters
+./stormindexer find --name "*.pdf" --dir "documents" --since "1 month ago"
+```
+
+**Find Command Features:**
+
+- **Pattern Matching**: Supports shell-style wildcards (`*` for any characters, `?` for single character)
+- **Directory Search**: Search by directory name patterns anywhere in the path
+- **Date Filtering**: Supports both relative dates (e.g., "2 weeks ago", "yesterday") and absolute dates (ISO format)
+- **Size Filtering**: Filter by file size with comparison operators
+- **Duplicate Detection**: Find duplicate files grouped by checksum and drive
+- **Type Filtering**: Filter results to show only files, only directories, or both
+- **Cross-Drive Search**: Search across all indexed drives simultaneously
+
+**Output Format:**
+
+- Regular searches display results in a table format with path, size, modification date, checksum, and drive
+- Duplicate searches group results by checksum, then by drive, making it easy to see where duplicates exist
 
 ### Reindex
 
@@ -172,6 +235,7 @@ By default, StormIndexer stores its database in `.stormindexer.db` in the curren
 3. **File Synchronization**: Keep files in sync across multiple machines or external drives
 4. **Change Tracking**: Monitor changes in directory structures over time
 5. **Archive Management**: Index and track files across multiple archive locations
+6. **File Discovery**: Quickly find files across multiple drives by name, directory, date, size, or checksum
 
 ## Examples
 

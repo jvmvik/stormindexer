@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -345,3 +346,178 @@ func (db *DB) FindFilesByChecksum(checksum string) ([]*models.FileEntry, error) 
 	return files, rows.Err()
 }
 
+
+// FindOptions represents search criteria for finding files
+type FindOptions struct {
+	NamePattern      string
+	DirectoryPattern string
+	Checksum         string
+	MinSize          int64
+	MaxSize          int64
+	IndexIDs         []string
+	OnlyDuplicates   bool
+	ModifiedSince    *time.Time
+	ModifiedUntil    *time.Time
+	FileType         string // "file", "dir", "directory", "all"
+}
+
+// FileWithIndex represents a file entry with index metadata
+type FileWithIndex struct {
+	*models.FileEntry
+	IndexName string
+	IndexPath string
+}
+
+// FindFiles searches for files across all indexes based on the provided options
+func (db *DB) FindFiles(opts FindOptions) ([]*FileWithIndex, error) {
+	var conditions []string
+	var args []interface{}
+
+	// Build WHERE clause conditions
+	if opts.NamePattern != "" {
+		// Convert shell-style wildcards to SQL LIKE patterns
+		pattern := convertPatternToLike(opts.NamePattern)
+		conditions = append(conditions, "f.relative_path LIKE ?")
+		args = append(args, pattern)
+	}
+
+	if opts.DirectoryPattern != "" {
+		dirPattern := convertPatternToLike(opts.DirectoryPattern)
+		// Match directory name anywhere in path
+		conditions = append(conditions, `(
+			f.relative_path LIKE ? || '/%'
+			OR f.relative_path LIKE '%/' || ? || '/%'
+			OR f.relative_path LIKE '%/' || ?
+			OR f.relative_path LIKE ?
+		)`)
+		args = append(args, dirPattern, dirPattern, dirPattern, dirPattern)
+	}
+
+	if opts.Checksum != "" {
+		conditions = append(conditions, "f.checksum = ?")
+		args = append(args, opts.Checksum)
+	}
+
+	if opts.MinSize > 0 {
+		conditions = append(conditions, "f.size >= ?")
+		args = append(args, opts.MinSize)
+	}
+
+	if opts.MaxSize > 0 {
+		conditions = append(conditions, "f.size <= ?")
+		args = append(args, opts.MaxSize)
+	}
+
+	// File type filtering
+	fileType := opts.FileType
+	if fileType == "" {
+		fileType = "all"
+	}
+	if fileType == "directory" {
+		fileType = "dir"
+	}
+	if fileType == "file" {
+		conditions = append(conditions, "f.is_directory = 0")
+	} else if fileType == "dir" {
+		conditions = append(conditions, "f.is_directory = 1")
+	}
+	// "all" doesn't add a condition
+
+	if opts.ModifiedSince != nil {
+		conditions = append(conditions, "f.mod_time >= ?")
+		args = append(args, opts.ModifiedSince.Format(time.RFC3339))
+	}
+
+	if opts.ModifiedUntil != nil {
+		conditions = append(conditions, "f.mod_time <= ?")
+		args = append(args, opts.ModifiedUntil.Format(time.RFC3339))
+	}
+
+	if len(opts.IndexIDs) > 0 {
+		placeholders := ""
+		for i, id := range opts.IndexIDs {
+			if i > 0 {
+				placeholders += ","
+			}
+			placeholders += "?"
+			args = append(args, id)
+		}
+		conditions = append(conditions, "f.index_id IN ("+placeholders+")")
+	}
+
+	// Handle duplicates filter
+	if opts.OnlyDuplicates {
+		conditions = append(conditions, `f.checksum IN (
+			SELECT checksum 
+			FROM files 
+			WHERE checksum != '' 
+			GROUP BY checksum 
+			HAVING COUNT(*) > 1
+		)`)
+	}
+
+	// Build query
+	query := `
+	SELECT f.id, f.path, f.relative_path, f.size, f.mod_time, f.checksum, 
+	       f.index_id, f.last_scanned, f.is_directory,
+	       i.name as index_name, i.root_path as index_path
+	FROM files f
+	JOIN indexes i ON f.index_id = i.id
+	`
+
+	if len(conditions) > 0 {
+		query += "WHERE " + conditions[0]
+		for i := 1; i < len(conditions); i++ {
+			query += " AND " + conditions[i]
+		}
+	}
+
+	query += " ORDER BY i.name, f.path"
+
+	rows, err := db.conn.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query files: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*FileWithIndex
+	for rows.Next() {
+		file := &models.FileEntry{}
+		var modTime, lastScanned string
+		var indexName, indexPath string
+
+		err := rows.Scan(
+			&file.ID, &file.Path, &file.RelativePath, &file.Size, &modTime,
+			&file.Checksum, &file.IndexID, &lastScanned, &file.IsDirectory,
+			&indexName, &indexPath,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan file: %w", err)
+		}
+
+		file.ModTime, _ = time.Parse(time.RFC3339, modTime)
+		file.LastScanned, _ = time.Parse(time.RFC3339, lastScanned)
+
+		results = append(results, &FileWithIndex{
+			FileEntry: file,
+			IndexName: indexName,
+			IndexPath: indexPath,
+		})
+	}
+
+	return results, rows.Err()
+}
+
+// convertPatternToLike converts shell-style wildcards (*, ?) to SQL LIKE patterns
+func convertPatternToLike(pattern string) string {
+	// Escape SQL LIKE special characters first (need to escape backslash first)
+	pattern = strings.ReplaceAll(pattern, `\`, `\\`)
+	pattern = strings.ReplaceAll(pattern, `%`, `\%`)
+	pattern = strings.ReplaceAll(pattern, `_`, `\_`)
+
+	// Convert wildcards
+	pattern = strings.ReplaceAll(pattern, `*`, `%`)
+	pattern = strings.ReplaceAll(pattern, `?`, `_`)
+
+	return pattern
+}
